@@ -8,14 +8,22 @@ const MCP_URL = `https://lunarcrush.ai/mcp?key=${API_KEY}`;
 let sessionId = null;
 
 async function sendMCPRequest(payload) {
+  console.log(`Sending ${payload.method} request`, { hasSessionId: !!sessionId });
+
   const headers = {
     'Content-Type': 'application/json'
   };
 
-  // Only add session ID if method is NOT initialize and we have a session
+  // CRITICAL: Never add session ID for initialize requests
   if (payload.method !== 'initialize' && sessionId) {
     headers['Mcp-Session-Id'] = sessionId;
+    console.log('Adding session ID to headers:', sessionId);
+  } else if (payload.method === 'initialize') {
+    console.log('Skipping session ID for initialize request');
   }
+
+  console.log('Request headers:', headers);
+  console.log('Request payload:', JSON.stringify(payload, null, 2));
 
   const response = await fetch(MCP_URL, {
     method: 'POST',
@@ -23,16 +31,33 @@ async function sendMCPRequest(payload) {
     body: JSON.stringify(payload)
   });
 
+  const responseText = await response.text();
+  console.log('Raw response:', response.status, responseText);
+
   if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`HTTP ${response.status}: ${errorText}`);
+    throw new Error(`HTTP ${response.status}: ${responseText}`);
   }
 
-  const result = await response.json();
+  let result;
+  try {
+    result = JSON.parse(responseText);
+  } catch (e) {
+    throw new Error(`Invalid JSON response: ${responseText}`);
+  }
 
-  // Store session ID from initialize response
-  if (payload.method === 'initialize' && result.sessionId) {
-    sessionId = result.sessionId;
+  // Extract session ID from initialize response headers or body
+  if (payload.method === 'initialize') {
+    // Check response headers first
+    const sessionFromHeader = response.headers.get('Mcp-Session-Id');
+    if (sessionFromHeader) {
+      sessionId = sessionFromHeader;
+      console.log('Session ID from header:', sessionId);
+    } else if (result.sessionId) {
+      sessionId = result.sessionId;
+      console.log('Session ID from body:', sessionId);
+    } else {
+      console.log('No session ID found in response');
+    }
   }
 
   return result;
