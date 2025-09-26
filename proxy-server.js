@@ -2,9 +2,6 @@ import express from "express";
 import cors from "cors";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { Server } from "@modelcontextprotocol/sdk/server/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 
 dotenv.config();
 
@@ -12,15 +9,65 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-const API_KEY = process.env.LUNAR_API_KEY
+const API_KEY = process.env.LUNAR_API_KEY;
 const MCP_URL = `https://lunarcrush.ai/mcp?key=${API_KEY}`;
 
-const clientTransport = new StreamableHTTPClientTransport(new URL(MCP_URL));
-const client = new Client({ name: "LunarCrush", version: "1.0.0" });
+let sessionId = null;
 
-async function start() {
-  await client.connect(clientTransport);
-  console.log("MCP Proxy server connected");
+async function sendMCPRequest(payload) {
+  console.log(`Sending ${payload.method} request`, { hasSessionId: !!sessionId });
+
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+
+  // CRITICAL: Never add session ID for initialize requests
+  if (payload.method !== 'initialize' && sessionId) {
+    headers['Mcp-Session-Id'] = sessionId;
+    console.log('Adding session ID to headers:', sessionId);
+  } else if (payload.method === 'initialize') {
+    console.log('Skipping session ID for initialize request');
+  }
+
+  console.log('Request headers:', headers);
+  console.log('Request payload:', JSON.stringify(payload, null, 2));
+
+  const response = await fetch(MCP_URL, {
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(payload)
+  });
+
+  const responseText = await response.text();
+  console.log('Raw response:', response.status, responseText);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${responseText}`);
+  }
+
+  let result;
+  try {
+    result = JSON.parse(responseText);
+  } catch (e) {
+    throw new Error(`Invalid JSON response: ${responseText}`);
+  }
+
+  // Extract session ID from initialize response headers or body
+  if (payload.method === 'initialize') {
+    // Check response headers first
+    const sessionFromHeader = response.headers.get('Mcp-Session-Id');
+    if (sessionFromHeader) {
+      sessionId = sessionFromHeader;
+      console.log('Session ID from header:', sessionId);
+    } else if (result.sessionId) {
+      sessionId = result.sessionId;
+      console.log('Session ID from body:', sessionId);
+    } else {
+      console.log('No session ID found in response');
+    }
+  }
+
+  return result;
 }
 
 app.get("/", (req, res) => {
@@ -30,17 +77,23 @@ app.get("/", (req, res) => {
 app.post("/mcp-proxy", async (req, res) => {
   try {
     const requestPayload = req.body;
-    const response = await client.request(requestPayload);
+    console.log('Received request:', requestPayload.method, requestPayload);
+
+    const response = await sendMCPRequest(requestPayload);
+    console.log('Response:', response);
+
     res.json(response);
   } catch (error) {
-    console.error("MCP proxy error:", error);
-    res.status(500).json({ error: "MCP proxy internal error" });
+    console.error("MCP proxy error:", error.message);
+    res.status(500).json({
+      error: "MCP proxy internal error",
+      details: error.message
+    });
   }
 });
 
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, async () => {
-  await start();
+app.listen(PORT, () => {
   console.log(`Proxy server listening on http://localhost:${PORT}`);
 });
