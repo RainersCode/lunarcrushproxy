@@ -1,10 +1,13 @@
 {
+  "type": "module",
+  "scripts": {
+    "start": "node proxy-server.js"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.2",
     "body-parser": "^2.2.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "type": "module"
-
+    "dotenv": "^16.0.0"
   }
 }

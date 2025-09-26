@@ -12,21 +12,20 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-const API_KEY = process.env.LUNARCRUSH_API_KEY
+const API_KEY = process.env.LUNAR_API_KEY
 const MCP_URL = `https://lunarcrush.ai/mcp?key=${API_KEY}`;
 
 const clientTransport = new StreamableHTTPClientTransport(new URL(MCP_URL));
 const client = new Client({ name: "LunarCrush", version: "1.0.0" });
-const server = new Server(
-  { name: "ProxyServer", version: "1.0.0" },
-  { capabilities: { prompts: {}, completions: {}, resources: { subscribe: true }, tools: {} } }
-);
 
 async function start() {
-  await server.connect(); // Default transport (stdin/stdout)
   await client.connect(clientTransport);
   console.log("MCP Proxy server connected");
 }
+
+app.get("/", (req, res) => {
+  res.json({ message: "LunarCrush MCP Proxy Server is running", endpoint: "/mcp-proxy" });
+});
 
 app.post("/mcp-proxy", async (req, res) => {
   try {

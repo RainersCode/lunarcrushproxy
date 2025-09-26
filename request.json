@@ -1,0 +1,15 @@
+{
+    "jsonrpc": "2.0",
+    "method": "aiAgentQuery",
+    "params": {
+      "prompt": "Identify the top 100 cryptocurrencies ranked by AltRank over the past hour. Highlight coins with increasing AltRank momentum and significant trading volume.",
+      "filters": {
+        "metric": "altRank",
+        "timeframe": "1h",
+        "top_n": 100,
+        "min_volume_usd": 1000000
+      }
+    },
+    "id": 1
+  }
+  
