@@ -48,9 +48,23 @@ async function sendMCPRequest(payload) {
 
   let result;
   try {
-    result = JSON.parse(responseText);
+    // Check if response is in SSE format (starts with "event:")
+    if (responseText.startsWith('event:')) {
+      // Parse SSE format - extract JSON from "data:" line
+      const lines = responseText.split('\n');
+      const dataLine = lines.find(line => line.startsWith('data:'));
+      if (dataLine) {
+        const jsonData = dataLine.substring(5).trim(); // Remove "data:" prefix
+        result = JSON.parse(jsonData);
+      } else {
+        throw new Error(`No data line found in SSE response: ${responseText}`);
+      }
+    } else {
+      // Regular JSON response
+      result = JSON.parse(responseText);
+    }
   } catch (e) {
-    throw new Error(`Invalid JSON response: ${responseText}`);
+    throw new Error(`Invalid response format: ${responseText}`);
   }
 
   // Extract session ID from initialize response headers or body
