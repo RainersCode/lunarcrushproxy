@@ -91,7 +91,27 @@ app.get("/", (req, res) => {
 
 app.post("/mcp-proxy", async (req, res) => {
   try {
+    console.log('Raw request body:', req.body);
+    console.log('Request body type:', typeof req.body);
+    console.log('Request headers:', req.headers);
+
     const requestPayload = req.body;
+
+    // Validate request payload
+    if (!requestPayload || typeof requestPayload !== 'object') {
+      return res.status(400).json({
+        error: "Invalid request payload",
+        details: "Request body must be a valid JSON object"
+      });
+    }
+
+    if (!requestPayload.method) {
+      return res.status(400).json({
+        error: "Missing method in request",
+        details: "JSON-RPC request must include a method field"
+      });
+    }
+
     console.log('Received request:', requestPayload.method, requestPayload);
 
     const response = await sendMCPRequest(requestPayload);
